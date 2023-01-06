@@ -19,4 +19,14 @@ class Product extends Model
     protected $fillable = ['name', 'serial', 'purchase_price', 'sale_price', 'range', 'stock'];
     
     public $timestamps = false;
+
+    /**
+     * Sales of the product
+     */
+    public function sales()
+    {
+      return $this->belongsToMany(Sale::class, 'sales_products')
+        ->as('sold')                
+        ->withPivot('quantity');
+    }
 }

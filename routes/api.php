@@ -26,3 +26,4 @@ Route::apiResource('products', ProductController::class);
 Route::post('products/update-stock', [ProductController::class, 'updateStock']);
 
 Route::apiResource('sales', SaleController::class);
+Route::post('sales/report', [SaleController::class, 'salesReport']);

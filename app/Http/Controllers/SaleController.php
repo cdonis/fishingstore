@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ProductRanges;
 use App\Http\Requests\StoreSaleRequest;
 use App\Models\Product;
 use App\Models\Sale;
@@ -9,6 +10,8 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use PDF;
+use stdClass;
 
 class SaleController extends Controller
 {
@@ -35,7 +38,7 @@ class SaleController extends Controller
      */
     public function store(StoreSaleRequest $request)
     {
-        $data = $request->all();
+        $data = $request->validated();
         
         DB::beginTransaction();
         try {
@@ -72,7 +75,11 @@ class SaleController extends Controller
           }
 
           DB::commit();
-          return response()->json($sale, Response::HTTP_CREATED);
+
+          $responseData = $sale->toArray();
+          $responseData['products'] = $sale->products;
+
+          return response()->json($responseData, Response::HTTP_CREATED);
 
         } catch (Exception $e) {
           DB::rollback();
@@ -95,15 +102,71 @@ class SaleController extends Controller
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update the sale resource and its products (in pivot table).
      *
      * @param  \Illuminate\Http\Request  $request
      * @param  \App\Models\Sale  $sale
      * @return \Illuminate\Http\Response
      */
-    public function update(Request $request, Sale $sale)
+    public function update(StoreSaleRequest $request, Sale $sale)
     {
-        //
+        $data = $request->validated();
+        
+        DB::beginTransaction();
+        try {
+          // Update sales table
+          $sale->update(['cashier' => $data['cashier']]);
+  
+          // Restore stock in products to be removed from the sale
+          $sale->products()
+               ->wherePivotNotIn('product_id', array_column($data['products'], 'id'))
+               ->each(function ($product) {
+                    $product->stock += $product->sold->quantity;
+                    $product->save();
+                });
+
+          // Update product stock for modified and new products
+          $updatedProducts = array();
+          foreach($data['products'] as $product) {
+            $productModel = Product::find($product['id']);
+            // Validate product exists
+            if ($productModel) {  
+              // Set new sale-product info
+              $updatedProducts[$product['id']] = ['quantity' => $product['quantity']];
+              
+              // Update product stock according to differences in the quantities 
+              $saleProduct = $productModel->sales()->find($sale->id);
+              $previousQty = ($saleProduct) ? $saleProduct->sold->quantity : 0;
+              $productModel->stock += ($previousQty - $product['quantity']);
+              $productModel->save();
+            } else {
+              // Product does not exists. Stop process and return HTTP_UNPROCESSABLE_ENTITY
+              DB::rollback();
+              return response([
+                'message' => 'Invalid product ID',
+                'errors'  => [
+                  "product.{$product['id']}" => [
+                    "The product.{$product['id']} does not exists."
+                  ]
+                ]
+              ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+          }
+
+          // Update pivot table (sales_products) with the new set of products. 
+          $sale->products()->sync($updatedProducts);  // <-- Expected estructure [<product_id> => ['quantity' => <qty>], ...]
+
+          DB::commit();
+
+          $responseData = $sale->toArray();
+          $responseData['products'] = $sale->products;
+
+          return response()->json($responseData, Response::HTTP_ACCEPTED);
+
+        } catch (Exception $e) {
+          DB::rollback();
+          return response($e->getMessage(), Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**
@@ -116,5 +179,54 @@ class SaleController extends Controller
     {
         $sale->delete();
         return response()->noContent();
+    }
+
+    public function salesReport()
+    {
+      // Initialize object containing report data
+      $reportData = new stdClass();
+      $reportData->lowrange_total = 0;
+      $reportData->lowrange_profit = 0;
+      $reportData->midrange_total = 0;
+      $reportData->midrange_profit = 0;
+      $reportData->highrange_total = 0;
+      $reportData->highrange_profit = 0;
+
+      Sale::all()->each(function ($sale) use ($reportData) { 
+        foreach($sale->products as $product) {
+          $totalSold = $product->sale_price * $product->sold->quantity;
+          $totalProfit = ($product->sale_price - $product->purchase_price) * $product->sold->quantity;
+
+          switch ($product->range) {
+            case ProductRanges::LOW_RANGE : {
+              $reportData->lowrange_total += $totalSold;
+              $reportData->lowrange_profit += $totalProfit;
+              break;
+            }
+            case ProductRanges::MID_RANGE : {
+              $reportData->midrange_total += $totalSold;
+              $reportData->midrange_profit += $totalProfit;
+              break;
+            }
+            case ProductRanges::HIGH_RANGE : {
+              $reportData->highrange_total += $totalSold;
+              $reportData->highrange_profit += $totalProfit;
+              break;
+            }
+          }
+        }
+      });
+
+      $reportData->total = $reportData->lowrange_total + $reportData->midrange_total + $reportData->highrange_total;
+      $reportData->profit = $reportData->lowrange_profit + $reportData->midrange_profit + $reportData->highrange_profit;
+      
+      // Format numbers with two decimals, '.' as decimal separator and ',' as thousand separetor
+      foreach(get_object_vars($reportData) as $propertie => $value) 
+        $reportData->$propertie = number_format($value, 2, '.', ',');
+
+      // Create the pdf
+      $pdf = PDF::loadView('pdf', compact('reportData'))->setPaper('a4', 'landscape');
+
+      return $pdf->download('sales_report.pdf');
     }
 }

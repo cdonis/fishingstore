@@ -1,0 +1,23 @@
+table {
+  border-left: 0.01em solid black;
+  border-right: 0;
+  border-top: 0.01em solid black;
+  border-bottom: 0;
+  border-collapse: collapse;
+}
+table td {
+  padding: 5px;
+}
+table td,
+table th {
+  border-left: 0;
+  border-right: 0.01em solid black;
+  border-top: 0;
+  border-bottom: 0.01em solid black;
+}
+.align-number {
+  text-align: right;
+}
+.align-text {
+  text-align: center;
+}
