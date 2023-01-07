@@ -32,39 +32,35 @@ Una parte fundamental de la aplicación final que será entregada a María es un
 - Composer
 # Instalación del ambiente de desarrollo
 1. Clonar repositorio desde la dirección <https://github.com/cdonis/fishingstore.git>
-
+```bash
 git clone https://github.com/cdonis/fishingstore.git
-
-1. Crear una copia del fichero .env.example y renombrarla con .env
-1. Instalar dependencias del proyecto
-
+```
+2. Crear una copia del fichero .env.example y renombrarla con .env
+3. Instalar dependencias del proyecto
+```bash
 composer install
-
-1. Crear una base de datos local y actualizar las variables correspondientes en el fichero .env
-
+```
+4. Crear una base de datos local y actualizar las variables correspondientes en el fichero .env
+```bash
 DB\_CONNECTION=pgsql
-
 DB\_HOST=127.0.0.1
-
 DB\_PORT=5432
-
 DB\_DATABASE=fishingstore
-
 DB\_USERNAME=<user>
-
 DB\_PASSWORD=<password>
-
-1. Ejecutar las migraciones de la base de datos
-
+```
+5. Ejecutar las migraciones de la base de datos
+```bash
 php artisan migrate
-
-1. Popular la base de datos con datos de prueba
-
+```
+6. Popular la base de datos con datos de prueba
+```bash
 php artisan db:seed
-
-1. Iniciar el servidor de desarrollo
-
+```
+7. Iniciar el servidor de desarrollo
+```bash
 php artisan serve
+```
 # Características de la implementación
 ## Modelo relacional
 **Tabla: 		*products***	
@@ -82,7 +78,8 @@ php artisan serve
 |Enumerado con 3 posibles valores: HIGH-RANGE (gama alta), MID-RANGE (gama media), LOW-RANGE (gama baja). Campo calculado a partir de la relación entre el precio de venta del producto (sale\_price) y su utilidad (sale\_price - purchase\_price y) Se incluye para mejorar eficiencia en consultas que requieren esta categorización del producto y evitar su cálculo en un procesamiento en lotes.|
 |stock|☐|☐|integer||☐|☐|Existencia del producto (unidades)|
 |<p>Constrains:</p><p>- Primary Key: 	id</p><p>- Unique: 		name</p><p>- Unique:		serial</p>|
-**Tabla: 		*sales***	
+	
+**Tabla: 		*sales***
 
 **Descripción**:	Almacena información sobre las ventas.
 
