@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Enums\ProductRanges;
+use App\Traits\Filtering;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    use HasFactory;
+    use HasFactory, Filtering;
 
     protected $casts = [
       'purchase_price' => 'float',
